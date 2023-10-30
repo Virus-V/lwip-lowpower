@@ -1,0 +1,58 @@
+srcdir = @srcdir@
+prefix = @prefix@
+exec_prefix = $(prefix)
+bindir = $(exec_prefix)/bin
+sbindir = $(exec_prefix)/sbin
+libexecdir = $(exec_prefix)/libexec
+datadir = $(prefix)/share
+
+IP_VERSION = 4
+CC = @CC@
+CPPFLAGS = @DEFS@ -I. -Ilwip-contrib/ports/unix/port/include \
+  -Ilwip-contrib/ports/unix/port/include/netif	\
+  -Ilwip/src/include/ipv$(IP_VERSION) -Ilwip/src/include \
+  -Ilwip-contrib/apps -Ilibrary \
+	@CPPFLAGS@
+CFLAGS = -pthread -Wall @CFLAGS@
+LDFLAGS = -pthread @LDFLAGS@
+LIBS = @LIBS@
+INSTALL = @INSTALL@
+
+LWIPDIR = lwip/src
+include lwip/src/Filelists.mk
+SOURCES = $(COREFILES) \
+	$(CORE4FILES) \
+	$(CORE6FILES) \
+	$(APIFILES) \
+	$(LWIPDIR)/netif/ethernet.c
+
+SOURCES += \
+  lwip-contrib/ports/unix/port/sys_arch.c \
+  lwip-contrib/ports/unix/port/netif/tapif.c \
+  lwip-contrib/apps/iperf/iperf.c \
+  lwip-contrib/apps/tcpecho/tcpecho.c \
+  lwip-contrib/apps/ping/ping.c \
+  lwip-lowpower.c
+
+OBJS := $(foreach f,$(SOURCES),$(f:.c=.o))
+
+all: lwip-lowpower
+%.d: %.c lwipopts.h
+	$(CC) -MM $(CFLAGS) $(CPPFLAGS) $< > $@.$$$$;	\
+	sed 's,\($(notdir $*)\)\.o[ :]*,$(dir $*)\1.o $@ : ,g' < $@.$$$$ > $@;	\
+	$(RM) -f $@.$$$$
+%.o: %.c lwipopts.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+lwip-lowpower: $(OBJS)
+	$(CC) $(LDFLAGS) $(LIBS) -o $@ $(OBJS)
+check-syntax:
+	$(CC) $(CFLAGS) $(CPPFLAGS) -fsyntax-only $(CHK_SOURCES)
+clean:
+	rm -f config.cache config.log
+	rm -f lwip-lowpower $(OBJS) *~
+	find . -name "*.d" | xargs rm
+distclean: clean
+	rm -f Makefile config.h config.status
+	rm -rf autom4te.cache
+.PHONY: all check-syntax clean distclean
+-include ${patsubst %.o,%.d,$(OBJS)}
